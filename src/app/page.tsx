@@ -314,14 +314,14 @@ export default function OktoDemo() {
       const data = await response.json();
       console.log('Email OTP verification response:', data);
       
-      localStorage.setItem('authToken', data.authToken); 
+      localStorage.setItem('authToken', data.auth_token); 
 
       if (!response.ok) {
         throw new Error(data.error || 'OTP verification failed');
       }
 
       setEmailOktoResult(data);
-      setAuthToken(data.authToken);
+      setAuthToken(data.auth_token);
       if (data.sessionConfig) {
         setSessionConfig(data.sessionConfig);
         localStorage.setItem('sessionConfig', JSON.stringify(data.sessionConfig));
