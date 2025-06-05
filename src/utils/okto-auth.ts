@@ -27,6 +27,8 @@ export async function invokeAuthenticate(authPayload: any) {
     );
     
     if (response.status === 200) {
+      // console.log("Authentication successful:", response.data);
+      
       return response;
     } else {
       throw new Error(response.data.error?.message || "Authentication failed");

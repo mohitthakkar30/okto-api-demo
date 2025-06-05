@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     });
 
     const payload = ticket.getPayload();
-    console.log('Google auth payload:', credential);
+    // console.log('Google auth payload:', credential);
     
     
     if (!payload) {

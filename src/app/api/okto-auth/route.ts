@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { invokeAuthenticate } from '../../../utils/okto-auth';
+import { getAuthorizationToken } from '../../../utils/getAuthorizationToken';
 import { v4 as uuidv4 } from "uuid";
-import {generatePaymasterData} from '../../../utils/generatePaymasterData';
+import { generatePaymasterData } from '../../../utils/generatePaymasterData';
 import { Constants } from '@/helper/constants';
 import {
   encodeAbiParameters,
@@ -23,10 +24,8 @@ async function generateAuthPayload(
   clientSWA: any,
   clientPriv: any
 ) {
-  
   // STEP 1: Generate a unique UUID-based nonce
   const nonce = uuidv4();
-  
   // STEP 2: Construct a UserOp authenticate payload
   const payload: any = {};
   payload.authData = authData;
@@ -34,8 +33,8 @@ async function generateAuthPayload(
   payload.sessionData.nonce = nonce;
   payload.sessionData.clientSWA = clientSWA;
   payload.sessionData.sessionPk = sessionKey.uncompressedPublicKeyHexWith0x;
-  payload.sessionData.maxPriorityFeePerGas = "0x2D79883D2000"; // constant on okto chain
-  payload.sessionData.maxFeePerGas = "0x2D79883D2000"; // constant on okto chain
+  payload.sessionData.maxPriorityFeePerGas = "0xBA43B7400"; // constant on okto chain
+  payload.sessionData.maxFeePerGas = "0xBA43B7400"; // constant on okto chain
   payload.sessionData.paymaster =
     Constants.ENV_CONFIG.SANDBOX.PAYMASTER_ADDRESS; // okto testnet paymaster address
   payload.sessionData.paymasterData = await generatePaymasterData(
@@ -45,13 +44,13 @@ async function generateAuthPayload(
     new Date(Date.now() + 6 * Constants.HOURS_IN_MS), // hours in milliseconds
     0
   );
-  
+
   // STEP 3: Create a message, sign it and add signatures to the user op. The message is signed using the client's private key and session private key to symbolize both the user and client signatures
   const message = {
     raw: toBytes(
       keccak256(
         encodeAbiParameters(parseAbiParameters("address"), [
-          sessionKey.ethereumAddress as Hex,
+          sessionKey.ethereumAddress,
         ])
       )
     ),
@@ -62,44 +61,104 @@ async function generateAuthPayload(
   });
   payload.sessionDataUserSignature = await signMessage({
     message,
-    privateKey: sessionKey.privateKeyHexWith0x as Hex
+    privateKey: sessionKey.privateKeyHexWith0x,
   });
-  console.log("signed payload: ");
+  // console.log("signed payload: ", payload);
+
   return payload;
 }
+
 export async function POST(request: NextRequest) {
   try {
-    const authPayload = await request.json();
-    // console.log("Received Auth Payload:", authPayload);
-    // console.log("========================================================");
-    // console.log("Private key:", authPayload.session.privateKeyHexWith0x);
-    //   console.log("Public key:", authPayload.session.uncompressedPublicKeyHexWith0x);
-    //   console.log("Ethereum address:", authPayload.session.ethereumAddress);
-    //   console.log("Address length:", authPayload.session.ethereumAddress?.length);
-    const session = SessionKey.create(); 
+    const body = await request.json();
+    // console.log("Received request body:", body);
     
-    const load = await generateAuthPayload(authPayload.extra_params, session, clientSWA, clientPrivateKey);
+    let idToken: string;
+    let provider: string;
+
+    // Handle different request body structures
+    if (body.extra_params) {
+      // Current structure with extra_params
+      ({ idToken, provider } = body.extra_params);
+    } else if (body.idToken && body.provider) {
+      // Direct structure
+      ({ idToken, provider } = body);
+    } else if (body.auth_token) {
+      // Email auth token (from email OTP flow)
+      idToken = body.auth_token;
+      provider = body.provider || "okto"; // Default to "okto" for email auth
+    } else {
+      return NextResponse.json(
+        { error: 'Invalid request format. Expected idToken and provider, or auth_token' }, 
+        { status: 400 }
+      );
+    }
+
+    // console.log("idToken: ", idToken);
+    // console.log("provider: ", provider);
     
-          // console.log("Private key:", session.privateKeyHexWith0x);
-      // console.log("Public key:", session.uncompressedPublicKeyHexWith0x);
-      // console.log("Ethereum address:", session.ethereumAddress);
-      // console.log("Address length:", session.ethereumAddress?.length);
-      console.log("========================================================");
-    console.log("Generated Load for Okto Authenticate:");
-    console.log(load);
-    console.log("========================================================");
-      
-    const response = await invokeAuthenticate(load);
-    console.log("========================================================");
+    // Validate required fields
+    if (!idToken || !provider) {
+      return NextResponse.json(
+        { error: 'idToken and provider are required' }, 
+        { status: 400 }
+      );
+    }
+
+    const data = {
+      idToken,
+      provider,
+    };
+
+    // Create a new session key using a random private key
+    const session = SessionKey.create();
+    // console.log("session created");
+
+    const authPayload = await generateAuthPayload(
+      data,
+      session,
+      clientSWA,
+      clientPrivateKey
+    );
+
+    // console.log("calling authenticate...");
+    const response = await invokeAuthenticate(authPayload);
+
+    if (response.status === 200) {
+      // console.log("provider: ", provider);
+      // console.log("response : ", response.data);
     
-    console.log("Response from Okto Authenticate:");
-    return NextResponse.json(response.data);
+      const sessionConfig = {
+        sessionPrivKey: session.privateKeyHexWith0x,
+        sessionPubKey: session.uncompressedPublicKeyHexWith0x,
+        userSWA: response.data.data.userSWA,
+      };
+      // console.log("Session Config: ", sessionConfig);
+
+      // STEP 2: Get the authorization token using the sessionConfig object
+      const authToken = await getAuthorizationToken(sessionConfig);
+      // console.log("Okto session authToken: ", authToken);
+
+      return NextResponse.json({
+        success: true,
+        authToken,
+        sessionConfig,
+        userSWA: response.data.data.userSWA,
+        provider
+      });
+
+    } else {
+      console.error("Failed to get Okto token");
+      return NextResponse.json(
+        { error: 'Failed to authenticate with Okto' }, 
+        { status: response.status }
+      );
+    }
   } catch (error: any) {
-    console.log("Error from route.ts");
-    
+    console.error("Error from route.ts:", error);
     return NextResponse.json(
-      { error: error.message }, 
-      { status: 400 }
+      { error: error.message || 'An error occurred while fetching the Okto token' }, 
+      { status: 500 }
     );
   }
 }
