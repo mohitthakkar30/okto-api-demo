@@ -312,7 +312,9 @@ export default function OktoDemo() {
       });
 
       const data = await response.json();
-      localStorage.setItem('authToken', data.authToken); // Store auth token in local storage
+      console.log('Email OTP verification response:', data);
+      
+      localStorage.setItem('authToken', data.authToken); 
 
       if (!response.ok) {
         throw new Error(data.error || 'OTP verification failed');
@@ -553,7 +555,7 @@ export default function OktoDemo() {
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-white mb-2">
                           Enter OTP
                         </label>
                         <input
