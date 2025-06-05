@@ -311,7 +311,3 @@ function validateUserOp(userOp: any) {
   
 //   console.log("UserOp validation passed");
 }
-
-
-// Export for potential external use
-export { transferTokenIntent };
