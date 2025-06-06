@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       idToken,
       provider,
     };
-
+   
     // Create a new session key using a random private key
     const session = SessionKey.create();
     // console.log("session created");
@@ -121,7 +121,9 @@ export async function POST(request: NextRequest) {
       clientPrivateKey
     );
 
-    // console.log("calling authenticate...");
+    console.log("calling authenticate...");
+    console.log("authPayload: ", authPayload);
+    
     const response = await invokeAuthenticate(authPayload);
 
     if (response.status === 200) {

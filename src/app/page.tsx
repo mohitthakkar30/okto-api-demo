@@ -31,6 +31,7 @@ export default function OktoDemo() {
   
   // Google Auth State
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
+  const [emailUserToken, setEmailUserToken] = useState();
   const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [googleOktoResult, setGoogleOktoResult] = useState<any>(null);
   
@@ -190,8 +191,11 @@ export default function OktoDemo() {
   };
 
   const handleOktoGoogleAuth = async () => {
-    if (!googleUser || !googleToken) {
-      setError('Please sign in with Google first');
+
+    console.log("emailUserToken:", emailUserToken); 
+    
+    if (!googleUser && !googleToken && !emailUserToken) {
+      setError('Please sign in first');
       return;
     }
 
@@ -199,6 +203,7 @@ export default function OktoDemo() {
     clearErrors();
     
     try {
+
       const authPayload = {
         extra_params: {
           idToken: googleToken,
@@ -206,6 +211,12 @@ export default function OktoDemo() {
         }
       };
 
+      if (emailUserToken) {
+        authPayload.extra_params.idToken = emailUserToken; 
+        authPayload.extra_params.provider = 'okto'; 
+      }
+      console.log('Okto email payload:', authPayload);
+      
       const response = await fetch('/api/okto-auth', {
         method: 'POST',
         headers: {
@@ -313,6 +324,8 @@ export default function OktoDemo() {
 
       const data = await response.json();
       console.log('Email OTP verification response:', data);
+      setEmailUserToken(data.auth_token); // Store the email user info
+
       
       localStorage.setItem('authToken', data.auth_token); 
 
@@ -598,6 +611,15 @@ export default function OktoDemo() {
                     className="mt-3 text-sm text-red-600 hover:text-red-800"
                   >
                     Sign Out
+                  </button>
+                </div>
+                <div className="text-center">
+                  <button 
+                    onClick={handleOktoGoogleAuth} 
+                    disabled={loading}
+                    className="bg-blue-500 text-white px-8 py-3 rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors text-lg font-medium"
+                  >
+                    {loading ? 'Authenticating Okto...' : 'Authenticate Okto'}
                   </button>
                 </div>
 
