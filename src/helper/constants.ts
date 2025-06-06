@@ -1,6 +1,6 @@
-// import type { Hex } from "./types.js";
-  import {type Hex,
-} from "viem";
+// PLEASE DO NOT CHANGE ANY OF THE VALUES IN THIS FILE
+
+import type { Hex } from "./types.js";
 
 export class Constants {
   static readonly HOURS_IN_MS = 60 * 60 * 1000;
@@ -31,20 +31,23 @@ export class Constants {
     RAW_TRANSACTION: 'RAW_TRANSACTION',
   };
 
+
+// DO NOT CHANGE THESE VALUES IN YOUR CODE
+
   static readonly ENV_CONFIG = {
     STAGING: {
-      PAYMASTER_ADDRESS: '0xdAa292E9B9a6B287c84d636F3b65f4A5Dc787e3f' ,
-      JOB_MANAGER_ADDRESS: '0xb5e77f7Ff1ab31Fc1bE99F484DB62f01a6b93D4d',
+      PAYMASTER_ADDRESS: '0xdAa292E9B9a6B287c84d636F3b65f4A5Dc787e3f' as Hex,
+      JOB_MANAGER_ADDRESS: '0xb5e77f7Ff1ab31Fc1bE99F484DB62f01a6b93D4d' as Hex,
       ENTRYPOINT_CONTRACT_ADDRESS:
-        '0xec3F5f7a3f0e43e61D8711A90B8c8Fc59B9a88ba',
-      CHAIN_ID: 84532,
+        '0xec3F5f7a3f0e43e61D8711A90B8c8Fc59B9a88ba' as Hex,
+      CHAIN_ID: 124736089,
     },
     SANDBOX: {
       PAYMASTER_ADDRESS: '0x74324fA6Fa67b833dfdea4C1b3A9898574d076e3' as Hex,
       JOB_MANAGER_ADDRESS: '0x0543aD80b41C5f5956d34503668CDb965deCB617' as Hex,
       ENTRYPOINT_CONTRACT_ADDRESS:
         '0xCa5b1b0d3893b5152014fD5B519FF50f7C40f9da' as Hex,
-      CHAIN_ID: 8453,
+      CHAIN_ID: 1802466136,
     },
     // PRODUCTION: {
     //   PAYMASTER_ADDRESS: '0x0871051BfF8C7041c985dEddFA8eF63d23AD3Fa0' as Hex,

@@ -74,17 +74,6 @@ export default function OktoDemo() {
       return;
     }
   
-    if (!recipientAddress || !tokenAddress || !amount) {
-      setError('Please fill in all transfer fields');
-      return;
-    }
-  
-    const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount) || numericAmount < 0) {
-      setError('Amount must be a positive number');
-      return;
-    }
-  
     if (!sessionConfig) {
       setError('Session configuration not found. Please re-authenticate.');
       return;
@@ -94,19 +83,11 @@ export default function OktoDemo() {
     clearErrors();
   
     try {
-      const caip2Id = networkToCaip2[networkName];
-      if (!caip2Id) {
-        throw new Error(`Unsupported network: ${networkName}`);
-      }
-  
       const transferPayload = {
-        caip2Id: caip2Id,
-        recipient: recipientAddress,
-        token: tokenAddress,
-        amount: numericAmount,
-        sessionConfig: sessionConfig,
+        sessionConfig: sessionConfig
       };
-      // console.log("Transfer Payload:", transferPayload);
+      
+      console.log("Transfer Payload:", transferPayload);
       
       const response = await fetch('/api/transfer-token-intent', {
         method: 'POST',
@@ -118,6 +99,7 @@ export default function OktoDemo() {
       });
   
       const data = await response.json();
+      console.log("API Response:", data);
   
       if (!response.ok) {
         throw new Error(data.error || 'Transfer failed');
@@ -228,10 +210,17 @@ export default function OktoDemo() {
       const data = await response.json();
       // console.log('Okto authentication response:', data.authToken);
       // console.log("Data:", data);
+      const updatedSessionConfig = {
+        sessionPrivKey: data.sessionConfig.sessionPrivKey,
+        sessionPubkey: data.sessionConfig.sessionPubKey, // renamed from sessionPubKey
+        userSWA: data.sessionConfig.userSWA
+      };
+      console.log("updatedSessionConfig:", updatedSessionConfig);
+      
       
       if (data.sessionConfig) {
         setSessionConfig(data.sessionConfig);
-        localStorage.setItem('sessionConfig', JSON.stringify(data.sessionConfig));
+        localStorage.setItem('sessionConfig', JSON.stringify(updatedSessionConfig));
       }
       
       localStorage.setItem('authToken', data.authToken); // Store auth token in local storage

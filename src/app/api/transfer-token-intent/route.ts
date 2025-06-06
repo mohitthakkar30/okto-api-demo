@@ -8,7 +8,7 @@ import {
 } from "viem";
 import { v4 as uuidv4 } from "uuid";
 
-// Import your helper files (you'll need to create these)
+// Import your helper files - EXACT PATHS FROM SCRIPT
 import { INTENT_ABI } from "../../../helper/abi";
 import { Constants } from "../../../helper/constants";
 import { paymasterData } from "../../../utils/generatePaymasterData";
@@ -19,20 +19,37 @@ import {
   type SessionConfig,
   getUserOperationGasPrice,
 } from "../../../utils/invokeExecuteUserOp";
-import { getChains } from "../../../utils/getChains";
+import { getChains } from "../../../utils/getChains"; // ✅ FIXED: Use explorer path like script
 import { getOrderHistory } from "../../../utils/getOrderHistory";
 import type { Address } from "../../../helper/types";
 
-interface TransferTokenIntentRequest {
+// Hardcoded values from script - EXACT MATCH
+const clientSWA = "0xaA3E06Db62661dcCE9EcdD27cc92bA4B4d6204f1"; // No Hex casting like script
+let OktoAuthToken = ""; // Will be set dynamically from auth header
+
+interface Data {
   caip2Id: string;
   recipient: string;
   token: string;
   amount: number;
+}
+
+interface TransferTokenRequest {
   sessionConfig: SessionConfig;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    console.log("=== API ENVIRONMENT DEBUG ===");
+    console.log("Node.js version:", process.version);
+    console.log("Platform:", process.platform);
+    console.log("Current working directory:", process.cwd());
+    console.log("Environment:", process.env.NODE_ENV);
+    console.log("Timestamp:", new Date().toISOString());
+    console.log("==============================");
+    
+    console.log("=== API Request Started ===");
+    
     const authHeader = request.headers.get('authorization');
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -42,64 +59,121 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
     
-    const body: TransferTokenIntentRequest = await request.json();
-    const { recipient, amount, sessionConfig } = body;
-    
-    // Configuration for non-sponsored mode
-    const oktoAuthToken = authHeader.substring(7);
-    const token = ""; // Empty string for native token transfers
-    const caip2Id = "eip155:8453"; // Base mainnet CAIP-2 ID
-    
-    // Validate required environment variables
-    const clientSWA = process.env.NEXT_PUBLIC_OKTO_SWA as Hex;
-    // console.log("clientSWA:", clientSWA);
-    
-    if (!clientSWA) {
-      return NextResponse.json(
-        { error: 'Missing NEXT_PUBLIC_OKTO_SWA environment variable' },
-        { status: 500 }
-      );
-    }
+    // Set dynamic OktoAuthToken
+    OktoAuthToken = authHeader.substring(7);
 
-    // Validate request body
-    if (!caip2Id || !recipient || amount < 0 || !sessionConfig) {
+    let body: TransferTokenRequest;
+    try {
+      body = await request.json();
+      console.log("✅ Request body parsed successfully");
+    } catch (parseError) {
+      console.log("❌ JSON parsing error:", parseError);
       return NextResponse.json(
-        { error: 'Invalid request parameters' },
+        { error: 'Invalid JSON in request body' },
         { status: 400 }
       );
     }
     
-    // console.log("Request parameters validated:");
-    // console.log("caip2Id:", caip2Id);
-    // console.log("recipient:", recipient);
-    // console.log("amount:", amount);
-    // console.log("sessionConfig:", sessionConfig);
+    const { sessionConfig } = body;
+
+    // Validate sessionConfig
+    if (!sessionConfig) {
+      console.log("❌ Missing sessionConfig");
+      return NextResponse.json(
+        { error: 'Missing required parameter: sessionConfig' },
+        { status: 400 }
+      );
+    }
     
-    const jobId = await transferTokenIntent(
-      { caip2Id, recipient, token, amount },
-      sessionConfig,
-      clientSWA,
-      oktoAuthToken
-    );
+    console.log("Request parameters validated:");
+    console.log("sessionConfig userSWA:", sessionConfig.userSWA);
     
-    // console.log("Job ID:", jobId);
+    // Use EXACT same values as the successful script
+    const data: Data = {
+      caip2Id: "eip155:8453", // BASE (same as script)
+      recipient: "0x111423FA917A010A4f62c9B2742708744B4CbFc4", // Same as script
+      token: "", // Same as script
+      amount: 1000000000000, // Same as script
+    };
+
+    // Hardcoded feePayerAddress from script
+    const feePayerAddress: Address = "0x5A2d9032605DA34A0a2a413143e111bcFA6Dd697";
     
-    // Get transaction details
-    const txnDetails = await getOrderHistory(
-      oktoAuthToken,
-      jobId,
-      "TOKEN_TRANSFER"
-    );
+    console.log("=== COMPARING WITH SCRIPT VALUES ===");
+    console.log("API clientSWA:", clientSWA);
+    console.log("API OktoAuthToken (first 20 chars):", OktoAuthToken.substring(0, 20) + "...");
+    console.log("API sessionConfig:", {
+      userSWA: sessionConfig.userSWA,
+      // sessionPubkey: sessionConfig.sessionPubkey.substring(0, 20) + "...",
+      // sessionPrivKey: sessionConfig.sessionPrivKey.substring(0, 20) + "..."
+    });
+    console.log("API data:", data);
+    console.log("API feePayerAddress:", feePayerAddress);
+    console.log("=========================================");
+    
+    // Call transferToken function with exact same signature as script
+    const jobId = await transferToken(data, sessionConfig, feePayerAddress);
+    
+    console.log("Job ID:", jobId);
+    
+    // Get transaction details with retry logic
+    let txnDetails;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        txnDetails = await getOrderHistory(OktoAuthToken, jobId, "TOKEN_TRANSFER");
+        
+        // Check if the transaction was discarded
+        if (txnDetails && txnDetails.order_status === 'BUNDLER_DISCARDED') {
+          console.log("❌ BUNDLER_DISCARDED detected");
+          console.log("Full transaction details:", JSON.stringify(txnDetails, null, 2));
+          
+          return NextResponse.json({
+            success: false,
+            jobId,
+            txnDetails,
+            error: "Transaction was discarded by bundler",
+            troubleshooting: {
+              possibleCauses: [
+                "Gas estimation issues",
+                "Paymaster problems", 
+                "Network congestion",
+                "Invalid user operation"
+              ],
+              suggestions: [
+                "Try with testnet first",
+                "Check if wallet has sufficient funds",
+                "Wait and retry",
+                "Contact Okto support with jobId: " + jobId
+              ]
+            },
+            message: "Token transfer was discarded by bundler"
+          }, { status: 400 });
+        }
+        
+        break; // Success, exit retry loop
+      } catch (historyError) {
+        attempts++;
+        console.log(`Attempt ${attempts} to get order history failed:`, historyError);
+        if (attempts >= maxAttempts) {
+          throw historyError;
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,
       jobId,
       txnDetails,
+      data: data, // Return the hardcoded data used
       message: "Token transfer initiated successfully"
     });
 
   } catch (error) {
-    console.error('Token transfer intent error:', error);
+    console.error('Token transfer error:', error);
     
     // Handle specific error types
     if (error instanceof Error) {
@@ -121,6 +195,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 400 }
         );
       }
+      if (error.message.includes('Policy Error') || error.message.includes('Token Mapping')) {
+        return NextResponse.json(
+          { error: 'Okto configuration error: Client Token Mapping not configured. Please configure token mapping in your Okto dashboard.' },
+          { status: 400 }
+        );
+      }
+      if (error.message.includes('BUNDLER_DISCARDED') || error.message.includes('discarded')) {
+        return NextResponse.json(
+          { 
+            error: 'Transaction discarded by bundler',
+            details: 'The user operation was rejected. This could be due to gas issues, paymaster problems, or network congestion.',
+            suggestions: [
+              'Try again with a smaller amount',
+              'Switch to testnet for testing', 
+              'Wait a few minutes and retry',
+              'Check wallet balance for gas fees'
+            ]
+          },
+          { status: 400 }
+        );
+      }
     }
     
     return NextResponse.json(
@@ -133,54 +228,69 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-async function transferTokenIntent(
-  data: { caip2Id: string; recipient: string; token: string; amount: number },
+/**
+ * Creates and executes a user operation for token transfer.
+ * This function is EXACTLY the same as the script's transferToken function.
+ *
+ * @param data - The parameters for transferring the token (caip2Id, recipientWalletAddress, tokenAddress, amount)
+ * @param sessionConfig - The sessionConfig object containing user SWA and session keys.
+ * @param feePayerAddress - Optional sponsor wallet address for gas fees
+ * @returns The job ID for the token transfer.
+ */
+async function transferToken(
+  data: Data,
   sessionConfig: SessionConfig,
-  clientSWA: Hex,
-  oktoAuthToken: string
+  feePayerAddress?: Address
 ): Promise<string> {
-    // console.log("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
-    // console.log("Caip2Id:", data.caip2Id);
-    // console.log("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
-    
+  console.log("=== INSIDE TRANSFERTOKEN FUNCTION ===");
+  console.log("Function clientSWA:", clientSWA);
+  console.log("Function OktoAuthToken (first 20):", OktoAuthToken.substring(0, 20) + "...");
+  console.log("Function data:", data);
+  console.log("Function sessionConfig userSWA:", sessionConfig.userSWA);
+  console.log("Function feePayerAddress:", feePayerAddress);
+  console.log("====================================");
+  
+  // Generate a unique UUID based nonce
   const nonce = uuidv4();
+  console.log("Generated nonce:", nonce);
 
+  // Get the Intent execute API info
   const jobParametersAbiType =
     "(string caip2Id, string recipientWalletAddress, string tokenAddress, uint amount)";
   const gsnDataAbiType = `(bool isRequired, string[] requiredNetworks, ${jobParametersAbiType}[] tokens)`;
 
-  // Get supported chains
-  const chains = await getChains(oktoAuthToken);
-//   console.log("Available chains:", chains.map((chain:any) => ({
-//     caip_id: chain.caip_id,
-//     network_name: chain.network_name,
-//     sponsorship_enabled: chain.sponsorship_enabled,
-//     gsn_enabled: chain.gsn_enabled
-//   })));
-  
+  // get the Chain CAIP2ID required for payload construction
+  // Note: Only the chains enabled on the Client's Developer Dashboard will be shown in the response
+  const chains = await getChains(OktoAuthToken);
+  console.log("Chains: ", chains);
+
   const currentChain = chains.find(
     (chain: any) => chain.caip_id.toLowerCase() === data.caip2Id.toLowerCase()
   );
 
   if (!currentChain) {
-    throw new Error(`Chain ${data.caip2Id} is not supported. Available chains: ${chains.map((c: any) => c.caip_id).join(', ')}`);
+    throw new Error(`Chain Not Supported`);
   }
-  
-//   console.log("=======================================");
-//   console.log("Current chain:", currentChain);
-//   console.log("Data:", data);
-//   console.log("Client SWA:", clientSWA);
-//   console.log("Session Config:", sessionConfig);
-//   console.log("Sponsorship enabled:", currentChain.sponsorship_enabled);
-//   console.log("GSN enabled:", currentChain.gsn_enabled);
-//   console.log("=======================================");
-  
-  // For non-sponsored mode, always use the default fee payer address
-  const feePayerAddress = "0x5A2d9032605DA34A0a2a413143e111bcFA6Dd697" //Constants.FEE_PAYER_ADDRESS;
-  
-//   console.log("Using fee payer address:", feePayerAddress);
 
-  // Create UserOp calldata
+  // if feePayerAddress is not provided, it will be set to the default value '0x0000000000000000000000000000000000000000
+  if (!feePayerAddress) {
+    feePayerAddress = Constants.FEE_PAYER_ADDRESS;
+  }
+
+  console.log("feePayerAddress:", feePayerAddress);
+  console.log("current chain:", currentChain);
+
+  // create the UserOp Call data for token transfer intent
+  console.log("=== CALLDATA GENERATION DEBUG ===");
+  console.log("nonceToBigInt(nonce):", nonceToBigInt(nonce));
+  console.log("toHex(nonceToBigInt(nonce), { size: 32 }):", toHex(nonceToBigInt(nonce), { size: 32 }));
+  console.log("Constants.EXECUTE_USEROP_FUNCTION_SELECTOR:", Constants.EXECUTE_USEROP_FUNCTION_SELECTOR);
+  console.log("Constants.ENV_CONFIG.SANDBOX.JOB_MANAGER_ADDRESS:", Constants.ENV_CONFIG.SANDBOX.JOB_MANAGER_ADDRESS);
+  console.log("Constants.USEROP_VALUE:", Constants.USEROP_VALUE);
+  console.log("Constants.FUNCTION_NAME:", Constants.FUNCTION_NAME);
+  console.log("Constants.INTENT_TYPE.TOKEN_TRANSFER:", Constants.INTENT_TYPE.TOKEN_TRANSFER);
+  console.log("=================================");
+
   const calldata = encodeAbiParameters(
     parseAbiParameters("bytes4, address,uint256, bytes"),
     [
@@ -213,7 +323,7 @@ async function transferTokenIntent(
           ]),
           encodeAbiParameters(parseAbiParameters(jobParametersAbiType), [
             {
-              amount: BigInt(data.amount*1e18),
+              amount: BigInt(data.amount),
               caip2Id: data.caip2Id,
               recipientWalletAddress: data.recipient,
               tokenAddress: data.token,
@@ -224,90 +334,76 @@ async function transferTokenIntent(
       }),
     ]
   );
-
-//   console.log("Calldata generated successfully");
-
-  // Get current gas prices
-  const gasPrice = await getUserOperationGasPrice(oktoAuthToken);
-//   console.log("Gas prices:", gasPrice);
   
-  // Ensure gas prices are properly formatted
-  if (!gasPrice.maxFeePerGas || !gasPrice.maxPriorityFeePerGas) {
-    throw new Error("Failed to get valid gas prices from Okto API");
-  }
-
-  // Generate paymaster data
-//   console.log("Generating paymaster data...");
-  const paymasterDataResult = await paymasterData({
-    nonce,
-    validUntil: new Date(Date.now() + 6 * Constants.HOURS_IN_MS),
-  });
-//   console.log("Paymaster data generated:", paymasterDataResult);
+  console.log("=== CALLDATA RESULT ===");
+  console.log("calldata length:", calldata.length);
+  console.log("calldata:", calldata);
+  console.log("=====================");
   
-  if (!paymasterDataResult) {
-    throw new Error("Failed to generate paymaster data");
-  }
+  // Compare with script's expected calldata:
+  const expectedCalldata = "0x8dd7712f00000000000000000000000000000000000000000000000000000000000000000000000000000000e2bb608bf66b81d3edc93e77ef1cddee4fdc679e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000003e48fa61ac000000000000000000000000000000000cfcb83f026674a128790839a86e944d7000000000000000000000000e8201e368557508bf183d4e2dce1b1a1e0bd20fa000000000000000000000000fbb05b5bf0192458e0ca5946d7b82a61eba9802500000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000003a000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000002540be400000000000000000000000000000000000000000000000000000000000000000c6569703135353a38343533320000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a307839363762323663396537376632663565303735336263626362326262363234653562626666323463000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e544f4b454e5f5452414e5346455200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+  
+  console.log("=== CALLDATA COMPARISON ===");
+  console.log("API calldata matches script:", calldata.substring(0, 200) === expectedCalldata.substring(0, 200));
+  console.log("Expected (first 200):", expectedCalldata.substring(0, 200));
+  console.log("Actual   (first 200):", calldata.substring(0, 200));
+  console.log("==========================");
+  console.log("calldata length:", calldata.length);
+  
+  // Compare this calldata with the script's output
+  console.log("=== CALLDATA COMPARISON POINT ===");
+  console.log("If this doesn't match the script's calldata, we found the issue!");
+  console.log("================================");
 
-  // Construct UserOp
+  const gasPrice = await getUserOperationGasPrice(OktoAuthToken);
+  console.log("Gas prices from API:", gasPrice);
+
+  // Construct the UserOp with all the data fetched above, sign it and add the signature to the userOp
   const userOp = {
     sender: sessionConfig.userSWA,
     nonce: toHex(nonceToBigInt(nonce), { size: 32 }),
-    paymaster: Constants.ENV_CONFIG.SANDBOX.PAYMASTER_ADDRESS,
+    paymaster: Constants.ENV_CONFIG.SANDBOX.PAYMASTER_ADDRESS, //paymaster address
     callGasLimit: toHex(Constants.GAS_LIMITS.CALL_GAS_LIMIT),
     verificationGasLimit: toHex(Constants.GAS_LIMITS.VERIFICATION_GAS_LIMIT),
     preVerificationGas: toHex(Constants.GAS_LIMITS.PRE_VERIFICATION_GAS),
     maxFeePerGas: gasPrice.maxFeePerGas,
     maxPriorityFeePerGas: gasPrice.maxPriorityFeePerGas,
-    paymasterPostOpGasLimit: toHex(Constants.GAS_LIMITS.PAYMASTER_POST_OP_GAS_LIMIT),
-    paymasterVerificationGasLimit: toHex(Constants.GAS_LIMITS.PAYMASTER_VERIFICATION_GAS_LIMIT),
+    paymasterPostOpGasLimit: toHex(
+      Constants.GAS_LIMITS.PAYMASTER_POST_OP_GAS_LIMIT
+    ),
+    paymasterVerificationGasLimit: toHex(
+      Constants.GAS_LIMITS.PAYMASTER_VERIFICATION_GAS_LIMIT
+    ),
     callData: calldata,
-    paymasterData: paymasterDataResult,
+    paymasterData: await paymasterData({
+      nonce,
+      validUntil: new Date(Date.now() + 6 * Constants.HOURS_IN_MS),
+    }),
   };
+  console.log("Unsigned UserOp: ", userOp);
 
-//   console.log("UserOp constructed:", {
-//     sender: userOp.sender,
-//     nonce: userOp.nonce,
-//     paymaster: userOp.paymaster,
-//     maxFeePerGas: userOp.maxFeePerGas,
-//     maxPriorityFeePerGas: userOp.maxPriorityFeePerGas
-//   });
-
-  // Sign and execute UserOp
-//   console.log("Signing UserOp...");
+  // Sign the userOp
   const signedUserOp = await signUserOp(userOp, sessionConfig);
-//   console.log("UserOp signed successfully");
-//   console.log("Signed UserOp structure:", JSON.stringify(signedUserOp, null, 2));
+  console.log("Signed UserOp: ", signedUserOp);
   
-  // Validate UserOp before execution
-//   console.log("Validating UserOp structure...");
-  validateUserOp(signedUserOp);
-  
-//   console.log("Executing UserOp...");
-  const jobId = await executeUserOp(signedUserOp, oktoAuthToken);
-//   console.log("UserOp executed, Job ID:", jobId);
+  // Log detailed UserOp for debugging
+  console.log("=== DETAILED USEROP DEBUG ===");
+  console.log("Sender:", signedUserOp.sender);
+  console.log("Nonce:", signedUserOp.nonce);
+  console.log("CallGasLimit:", signedUserOp.callGasLimit);
+  console.log("VerificationGasLimit:", signedUserOp.verificationGasLimit);
+  console.log("PreVerificationGas:", signedUserOp.preVerificationGas);
+  console.log("MaxFeePerGas:", signedUserOp.maxFeePerGas);
+  console.log("MaxPriorityFeePerGas:", signedUserOp.maxPriorityFeePerGas);
+  console.log("Paymaster:", signedUserOp.paymaster);
+  console.log("PaymasterData length:", signedUserOp.paymasterData?.length);
+  console.log("Signature length:", signedUserOp.signature?.length);
+  console.log("===============================");
+
+  // Execute the userOp
+  console.log("Executing UserOp...");
+  const jobId = await executeUserOp(signedUserOp, OktoAuthToken);
+  console.log("Job ID:", jobId);
 
   return jobId;
-}
-
-// Add validation function
-function validateUserOp(userOp: any) {
-  const requiredFields = [
-    'sender', 'nonce', 'callData', 'callGasLimit', 'verificationGasLimit',
-    'preVerificationGas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'signature'
-  ];
-  
-  const missingFields = requiredFields.filter(field => !userOp[field]);
-  if (missingFields.length > 0) {
-    throw new Error(`Missing required UserOp fields: ${missingFields.join(', ')}`);
-  }
-  
-  // Check if values are properly formatted as hex
-  const hexFields = ['nonce', 'callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'maxFeePerGas', 'maxPriorityFeePerGas'];
-  hexFields.forEach(field => {
-    if (userOp[field] && !userOp[field].startsWith('0x')) {
-      throw new Error(`Field ${field} must be hex encoded: ${userOp[field]}`);
-    }
-  });
-  
-//   console.log("UserOp validation passed");
 }
