@@ -521,107 +521,115 @@ export default function OktoDemo() {
         )}
 
         {/* Email OTP Tab */}
-        {activeTab === 'email' && (
-          <div className="bg-black rounded-lg shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-white mb-6 text-center">Email OTP Authentication</h2>
-            
-            {!emailOktoResult ? (
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email address"
-                      className="w-full bg-white text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={isOtpSent}
-                    />
-                  </div>
+        {/* Email OTP Tab */}
+{activeTab === 'email' && (
+  <div className="bg-black rounded-lg shadow-lg p-8">
+    <h2 className="text-2xl font-bold text-white mb-6 text-center">Email OTP Authentication</h2>
+    
+    {!emailOktoResult ? (
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email address"
+              className="w-full bg-white text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isOtpSent}
+            />
+          </div>
 
-                  {!isOtpSent ? (
-                    <button
-                      onClick={sendEmailOtp}
-                      disabled={loading || !email}
-                      className="w-full bg-blue-500 text-white py-3 rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors font-medium"
-                    >
-                      {loading ? 'Sending OTP...' : 'Send OTP'}
-                    </button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <p className="text-blue-800">📧 OTP sent to {email}</p>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-white mb-2">
-                          Enter OTP
-                        </label>
-                        <input
-                          type="text"
-                          value={otp}
-                          onChange={(e) => setOtp(e.target.value)}
-                          placeholder="Enter 6-digit OTP"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          maxLength={6}
-                        />
-                      </div>
-
-                      <div className="flex space-x-4">
-                        <button
-                          onClick={verifyEmailOtp}
-                          disabled={loading || !otp}
-                          className="flex-1 bg-green-500 text-white py-3 rounded-lg disabled:opacity-50 hover:bg-green-600 transition-colors font-medium"
-                        >
-                          {loading ? 'Verifying...' : 'Verify OTP'}
-                        </button>
-                        
-                        <button
-                          onClick={resetEmailOtp}
-                          className="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium"
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+          {!isOtpSent ? (
+            <button
+              onClick={sendEmailOtp}
+              disabled={loading || !email}
+              className="w-full bg-blue-500 text-white py-3 rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors font-medium"
+            >
+              {loading ? 'Sending OTP...' : 'Send OTP'}
+            </button>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <p className="text-blue-800">📧 OTP sent to {email}</p>
               </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="bg-green-50 p-6 rounded-lg border border-green-200">
-                  <h3 className="text-lg font-semibold text-green-800 mb-3">✅ Email OTP Verification Successful</h3>
-                  <p className="text-green-700">Authenticated with: {email}</p>
-                  <button 
-                    onClick={resetEmailOtp}
-                    className="mt-3 text-sm text-red-600 hover:text-red-800"
-                  >
-                    Sign Out
-                  </button>
-                </div>
-                <div className="text-center">
-                  <button 
-                    onClick={handleOktoGoogleAuth} 
-                    disabled={loading}
-                    className="bg-blue-500 text-white px-8 py-3 rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors text-lg font-medium"
-                  >
-                    {loading ? 'Authenticating Okto...' : 'Authenticate Okto'}
-                  </button>
-                </div>
-
-                <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200">
-                  <h3 className="font-bold text-lg mb-3 text-yellow-800">🎉 Okto Authentication Result:</h3>
-                  <pre className="bg-black p-4 rounded border overflow-auto text-sm max-h-64">
-                    {JSON.stringify(emailOktoResult, null, 2)}
-                  </pre>
-                </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Enter OTP
+                </label>
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter 6-digit OTP"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  maxLength={6}
+                />
               </div>
-            )}
+
+              <div className="flex space-x-4">
+                <button
+                  onClick={verifyEmailOtp}
+                  disabled={loading || !otp}
+                  className="flex-1 bg-green-500 text-white py-3 rounded-lg disabled:opacity-50 hover:bg-green-600 transition-colors font-medium"
+                >
+                  {loading ? 'Verifying...' : 'Verify OTP'}
+                </button>
+                
+                <button
+                  onClick={resetEmailOtp}
+                  className="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    ) : (
+      <div className="space-y-6">
+        <div className="bg-green-50 p-6 rounded-lg border border-green-200">
+          <h3 className="text-lg font-semibold text-green-800 mb-3">✅ Email OTP Verification Successful</h3>
+          <p className="text-green-700">Authenticated with: {email}</p>
+          <button 
+            onClick={resetEmailOtp}
+            className="mt-3 text-sm text-red-600 hover:text-red-800"
+          >
+            Sign Out
+          </button>
+        </div>
+        
+        {/* Show Authenticate Okto button if Okto auth hasn't been done yet */}
+        {!googleOktoResult && (
+          <div className="text-center">
+            <button 
+              onClick={handleOktoGoogleAuth} 
+              disabled={loading}
+              className="bg-blue-500 text-white px-8 py-3 rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors text-lg font-medium"
+            >
+              {loading ? 'Authenticating Okto...' : 'Authenticate Okto'}
+            </button>
           </div>
         )}
+
+        {/* Display Okto Authentication Result - Same as Google tab */}
+        {googleOktoResult && (
+          <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200">
+            <h3 className="font-bold text-lg mb-3 text-yellow-800">🎉 Okto Authentication Result:</h3>
+            <pre className="bg-white p-4 text-black rounded border overflow-auto text-sm max-h-64">
+              {JSON.stringify(googleOktoResult, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+)}
 
         {/* Token Transfer Tab */}
         {activeTab === 'transfer' && (
